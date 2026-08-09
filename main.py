@@ -1,4 +1,5 @@
 import torch
+import joblib
 import cv2 as cv
 import numpy as np
 import mediapipe as mp
@@ -11,9 +12,11 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 ROOT_DIR = Path(__file__).parent
 MODEL_DIR = ROOT_DIR / "model"
+OUTPUT_DIR = ROOT_DIR / "outputs"
 
 HAND_LANDMARK_MODEL_PATH = MODEL_DIR / "hand_landmarker.task"
-GESTURE_CLASSIFY_MODEL_PATH = MODEL_DIR / "model.pt"
+GESTURE_CLASSIFIER_PATH = MODEL_DIR / "gesture_classifier.joblib"
+GC_SCALER_PATH = MODEL_DIR / "gc_scaler.joblib"
 
 # For annotation
 MARGIN = 10  # pixels
@@ -29,7 +32,84 @@ base_options = python.BaseOptions(model_asset_path=str(HAND_LANDMARK_MODEL_PATH)
 options = vision.HandLandmarkerOptions(base_options=base_options, num_hands=2)
 detector = vision.HandLandmarker.create_from_options(options)
 
-# TODO: load gesture classification dnn
+# Load feature scaler
+gc_scaler = joblib.load(GC_SCALER_PATH)
+
+# Load gesture classifier
+gesture_classifier = joblib.load(GESTURE_CLASSIFIER_PATH)
+
+def landmarks_to_dict(result):
+    return {
+        "handedness": 
+        [
+            [
+                {"category": h.category_name, "score": h.score} 
+                for h in hand
+            ]
+            for hand in result.handedness
+        ],
+        "hand_landmarks": 
+        [
+            [
+                {"x": lm.x, "y": lm.y, "z": lm.z} 
+                for lm in hand
+            ]
+            for hand in result.hand_landmarks
+        ],
+        "hand_world_landmarks": 
+        [
+            [
+                {"x": lm.x, "y": lm.y, "z": lm.z} 
+                for lm in hand
+            ]
+            for hand in result.hand_world_landmarks
+        ]
+    }
+
+def featurize(entry):
+    """
+    Turn one MediaPipe hand_landmarks record into a fixed size list of
+    numbers that a model can learn from.
+
+    What it does, step by step:
+      1. Look at the first hand found in the picture.
+      2. Move all points so the wrist point becomes zero (position 0,0,0).
+      3. Shrink or grow all points using the size of the hand, so a hand
+         close to the camera and a hand far from the camera look the same.
+      4. Turn the 21 points, each with x, y, z, into one long list of 63 numbers.
+
+    If no hand was found in the picture, this returns None instead, so we
+    can skip that picture later instead of guessing wrong numbers for it.
+    """
+    # get the list of hands found in this picture, if any
+    lm_list = entry.get("hand_landmarks")
+    # if there is no hand list, or it is empty, we have nothing to use
+    if not lm_list or len(lm_list) == 0:
+        # tell the caller this picture has no usable hand
+        return None
+    # take just the first hand found (some pictures could have more than one)
+    pts = lm_list[0]
+    # if that first hand somehow has no points, skip it too
+    if not pts:
+        return None
+
+    # build a table of numbers: one row per point, three columns for x, y, z
+    coords = np.array([[p["x"], p["y"], p["z"]] for p in pts], dtype=np.float64)
+    # remember where the wrist point is (point number 0)
+    wrist = coords[0].copy()
+    # move every point so the wrist becomes the new zero point
+    coords -= wrist  # this makes the hand's position in the picture not matter
+
+    # measure the distance from the wrist to the middle finger's base knuckle
+    scale = np.linalg.norm(coords[9])  # this tells us roughly how big the hand looks
+    # avoid dividing by a number that is basically zero
+    if scale < 1e-8:
+        scale = 1e-8
+    # shrink or grow all points using that distance, so hand size does not matter
+    coords /= scale  # this makes the hand's size or distance from camera not matter
+
+    # turn the table of 21 rows and 3 columns into one flat list of 63 numbers
+    return coords.flatten()
 
 def draw_landmarks_on_image(rgb_image, detection_result):
   hand_landmarks_list = detection_result.hand_landmarks
@@ -49,47 +129,57 @@ def draw_landmarks_on_image(rgb_image, detection_result):
       mp_drawing_styles.get_default_hand_landmarks_style(),
       mp_drawing_styles.get_default_hand_connections_style())
 
-    # Get the top left corner of the detected hand's bounding box.
-    height, width, _ = annotated_image.shape
-    x_coordinates = [landmark.x for landmark in hand_landmarks]
-    y_coordinates = [landmark.y for landmark in hand_landmarks]
-    text_x = int(min(x_coordinates) * width)
-    text_y = int(min(y_coordinates) * height) - MARGIN
+    # # Get the top left corner of the detected hand's bounding box.
+    # height, width, _ = annotated_image.shape
+    # x_coordinates = [landmark.x for landmark in hand_landmarks]
+    # y_coordinates = [landmark.y for landmark in hand_landmarks]
+    # text_x = int(min(x_coordinates) * width)
+    # text_y = int(min(y_coordinates) * height) - MARGIN
 
-    # Draw handedness (left or right hand) on the image.
-    cv.putText(annotated_image, f"{handedness[0].category_name}",
-                (text_x, text_y), cv.FONT_HERSHEY_DUPLEX,
-                FONT_SIZE, HANDEDNESS_TEXT_COLOR, FONT_THICKNESS, cv.LINE_AA)
+    # # Draw handedness (left or right hand) on the image.
+    # cv.putText(annotated_image, f"{handedness[0].category_name}",
+    #             (text_x, text_y), cv.FONT_HERSHEY_DUPLEX,
+    #             FONT_SIZE, HANDEDNESS_TEXT_COLOR, FONT_THICKNESS, cv.LINE_AA)
 
   return annotated_image
 
-
 def main():
-    # TODO: get input image
-    # input_img_path =
-    # output_img_path = 
+    # Get input image
+    input_img_path = r"C:\Users\aaron\workspace\aig\210\project-2\aig210-project\data\like\0a0a1b43-d449-43cc-8066-3da2f50c0aab.jpg"
+    output_img_path = OUTPUT_DIR / f"{Path(input_img_path).stem}_annotated.jpg"
 
-    # TODO: inference landmarks from image
-    # image = mp.Image.create_from_file(str(input_img_path))    
-    # detection_result = detector.detect(image)
+    # Inference landmarks from image
+    image = mp.Image.create_from_file(str(input_img_path))    
+    detection_result = detector.detect(image)
     
-    # TODO: pass hand_world_landmarks to gesture classifier dnn
+    # Preprocess hand landmarks
+    detection_dict = landmarks_to_dict(detection_result)
+    feature_vector = featurize(detection_dict)
+    feature_mat = feature_vector.reshape(1, -1)
+    scaled_input_vector = gc_scaler.transform(feature_mat)
 
-    # TODO: inference on hand_world_landmarks
+    # Inference gesture class from feature vector
+    prediction = gesture_classifier.predict(scaled_input_vector)
 
-    # TODO: display result - landmarks + classification (?)
-    # class_label = CLASSES[output_logits.argmax]
-    # 
-    # annotated_image = draw_landmarks_on_image(image.numpy_view(), detection_result)
-    # annotated_image = cv.cvtColor(annotated_image, cv.COLOR_RGB2BGR)
-    #
+    # Display / save result - landmarks + classification
+    annotated_image = draw_landmarks_on_image(image.numpy_view(), detection_result)
+    annotated_image = cv.cvtColor(annotated_image, cv.COLOR_RGB2BGR)
+    
     # Add class label to annotated image
-    # text_x = 50, text_y = 50 # top left corner-ish, can be improved later
-    # cv.putText(annotated_image, f"{class_label}", (text_x, text_y), cv.FONT_HERSHEY_DUPLEX, FONT_SIZE, HANDEDNESS_TEXT_COLOR, FONT_THICKNESS, cv.LINE_AA)
-    # cv.imwrite(output_img_path, annotated_image)
-    # cv.imshow("result", annotated_image)
-    # cv.waitKey(0)
-    # cv.destroyWindow("result")
+    text_x = 50; text_y = 50 # top left corner-ish, can be improved later
+    cv.putText(annotated_image, 
+               f"Prediction = {str(prediction[0]).upper()}", 
+               (text_x, text_y), 
+               cv.FONT_HERSHEY_DUPLEX, 
+               FONT_SIZE, 
+               HANDEDNESS_TEXT_COLOR, 
+               FONT_THICKNESS, 
+               cv.LINE_AA)
+
+    cv.imwrite(output_img_path, annotated_image)
+    cv.imshow("result", annotated_image)
+    cv.waitKey(0)
+    cv.destroyWindow("result")
     pass
 
 if __name__=="__main__":
