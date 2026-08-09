@@ -1,0 +1,70 @@
+{
+  "n_total_records": 2000,
+  "n_dropped_no_hand": 170,
+  "missing_detection_by_class": {
+    "call": 42,
+    "dislike": 67,
+    "like": 57,
+    "take_picture": 4
+  },
+  "split_sizes": {
+    "train": 1281,
+    "val": 274,
+    "test": 275
+  },
+  "model_results": {
+    "Random Forest": {
+      "val_accuracy": 0.8868613138686131,
+      "accuracy": 0.9454545454545454
+    },
+    "SVM (RBF)": {
+      "val_accuracy": 0.8905109489051095,
+      "accuracy": 0.9381818181818182
+    },
+    "MLP": {
+      "val_accuracy": 0.916058394160584,
+      "accuracy": 0.9418181818181818
+    }
+  },
+  "best_model": "Random Forest",
+  "best_test_accuracy": 0.9454545454545454,
+  "classification_report_best_model": {
+    "call": {
+      "precision": 0.9295774647887324,
+      "recall": 0.9565217391304348,
+      "f1-score": 0.9428571428571428,
+      "support": 69.0
+    },
+    "dislike": {
+      "precision": 0.9508196721311475,
+      "recall": 0.8923076923076924,
+      "f1-score": 0.9206349206349206,
+      "support": 65.0
+    },
+    "like": {
+      "precision": 0.9117647058823529,
+      "recall": 0.9393939393939394,
+      "f1-score": 0.9253731343283582,
+      "support": 66.0
+    },
+    "take_picture": {
+      "precision": 0.9866666666666667,
+      "recall": 0.9866666666666667,
+      "f1-score": 0.9866666666666667,
+      "support": 75.0
+    },
+    "accuracy": 0.9454545454545454,
+    "macro avg": {
+      "precision": 0.9447071273672248,
+      "recall": 0.9437225093746834,
+      "f1-score": 0.9438829661217721,
+      "support": 275.0
+    },
+    "weighted avg": {
+      "precision": 0.9458930703533907,
+      "recall": 0.9454545454545454,
+      "f1-score": 0.9453565075057612,
+      "support": 275.0
+    }
+  }
+}
