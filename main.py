@@ -1,6 +1,19 @@
-import torch
+"""
+Gesture Classification Pipeline Inference
+
+Install:
+pip install -r requirements.txt
+
+Run:
+(1) execute: python main.py
+(2) navigate to Gradio URL in a web browser.
+(3) upload image
+(4) click submit
+"""
+
 import joblib
 import cv2 as cv
+import gradio as gr
 import numpy as np
 import mediapipe as mp
 from mediapipe.tasks import python
@@ -8,7 +21,6 @@ from mediapipe.tasks.python import vision
 from pathlib import Path
 
 CLASSES = ["call", "dislike", "like", "take_picture"]
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 ROOT_DIR = Path(__file__).parent
 MODEL_DIR = ROOT_DIR / "model"
@@ -143,9 +155,7 @@ def draw_landmarks_on_image(rgb_image, detection_result):
 
   return annotated_image
 
-def main():
-    # Get input image
-    input_img_path = r"C:\Users\aaron\workspace\aig\210\project-2\aig210-project\data\like\0a0a1b43-d449-43cc-8066-3da2f50c0aab.jpg"
+def run_inference(input_img_path):
     output_img_path = OUTPUT_DIR / f"{Path(input_img_path).stem}_annotated.jpg"
 
     # Inference landmarks from image
@@ -177,10 +187,17 @@ def main():
                cv.LINE_AA)
 
     cv.imwrite(output_img_path, annotated_image)
-    cv.imshow("result", annotated_image)
-    cv.waitKey(0)
-    cv.destroyWindow("result")
-    pass
+    return output_img_path
+
+def main():
+    app_ui = gr.Interface(
+        title="AIG210 Project Demo",
+        fn=run_inference,
+        inputs=gr.Image(type="filepath", label="Upload Image"),
+        outputs=gr.Image(label="Result"),
+    )
+
+    app_ui.launch()
 
 if __name__=="__main__":
     main()
