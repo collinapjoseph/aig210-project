@@ -7,4 +7,6 @@ Collin Joseph <br>
 `pip install -r requirements.txt`
 
 ## Run 
-`python main.py`
+1. `python main.py`
+2. Navigate to Gradio UI URL in web browser.
+3. Upload image and click submit.
