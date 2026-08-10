@@ -53,6 +53,8 @@ gc_scaler = joblib.load(GC_SCALER_PATH)
 gesture_classifier = joblib.load(GESTURE_CLASSIFIER_PATH)
 
 def landmarks_to_dict(result):
+    # Convert Hand Landmarks object into dictionary 
+    # for convenient serialization.
     return {
         "handedness": 
         [
@@ -168,6 +170,7 @@ def run_inference(input_img_path):
     detection_dict = landmarks_to_dict(detection_result)
     feature_vector = featurize(detection_dict)
 
+    # If no hands are detected, we cannot proceed
     if feature_vector is None:
         return ERROR_IMG_PATH
 
