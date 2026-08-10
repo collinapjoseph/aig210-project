@@ -23,12 +23,14 @@ from pathlib import Path
 CLASSES = ["call", "dislike", "like", "take_picture"]
 
 ROOT_DIR = Path(__file__).parent
+DATA_DIR = ROOT_DIR / "data"
 MODEL_DIR = ROOT_DIR / "model"
 OUTPUT_DIR = ROOT_DIR / "outputs"
 
 HAND_LANDMARK_MODEL_PATH = MODEL_DIR / "hand_landmarker.task"
 GESTURE_CLASSIFIER_PATH = MODEL_DIR / "gesture_classifier.joblib"
 GC_SCALER_PATH = MODEL_DIR / "gc_scaler.joblib"
+ERROR_IMG_PATH = DATA_DIR / "detection_failed.png"
 
 # For annotation
 MARGIN = 10  # pixels
@@ -165,6 +167,10 @@ def run_inference(input_img_path):
     # Preprocess hand landmarks
     detection_dict = landmarks_to_dict(detection_result)
     feature_vector = featurize(detection_dict)
+
+    if feature_vector is None:
+        return ERROR_IMG_PATH
+
     feature_mat = feature_vector.reshape(1, -1)
     scaled_input_vector = gc_scaler.transform(feature_mat)
 
